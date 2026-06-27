@@ -52,8 +52,9 @@ export default function ArticleHub() {
   const speechUtteranceRef = useRef(null);
   const { isDarkMode, toggleTheme } = useTheme();
 
-  // --- API Base URL ---
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+  // --- Env Vars ---
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7860/api/v1';
+  const DEFAULT_IMAGE_URL = import.meta.env.VITE_DEFAULT_IMAGE_URL || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=60';
 
   // --- Functions ---
   useEffect(() => {
@@ -590,10 +591,10 @@ export default function ArticleHub() {
                   >
                     <div className="h-48 overflow-hidden relative">
                       <img
-                        src={article.image || "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=60"}
+                        src={article.image || DEFAULT_IMAGE_URL}
                         alt={article.title}
                         className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=60' }}
+                        onError={(e) => { e.target.src = DEFAULT_IMAGE_URL }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                     </div>
@@ -628,7 +629,7 @@ export default function ArticleHub() {
               {/* Cover Image & Header */}
               <div className="h-72 md:h-96 w-full relative">
                 <img 
-                  src={selectedArticle.image || "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=60"} 
+                  src={selectedArticle.image || DEFAULT_IMAGE_URL} 
                   alt={selectedArticle.title} 
                   className="w-full h-full object-cover" 
                 />
