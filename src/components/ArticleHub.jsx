@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import AuthModal from './AuthModal';
 import { 
   Search, BookOpen, FileText, MessageSquare, ArrowRight, User, 
   ThumbsUp, ThumbsDown, Minus, Loader2, Send, AlertCircle, 
   Headphones, StopCircle, PauseCircle, PlayCircle, Moon, Sun, Globe,
-  ExternalLink, X, Upload, FilePlus
+  ExternalLink, X, Upload, FilePlus, LogOut, LogIn
 } from 'lucide-react';
 
 export default function ArticleHub() {
@@ -51,6 +53,10 @@ export default function ArticleHub() {
   const [isPaused, setIsPaused] = useState(false);
   const speechUtteranceRef = useRef(null);
   const { isDarkMode, toggleTheme } = useTheme();
+  
+  // --- Auth States ---
+  const { user, token, logout } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // --- Env Vars ---
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7860/api/v1';
@@ -254,13 +260,15 @@ export default function ArticleHub() {
     try {
       const payload = {
         text: newComment,
-        user: { id: 1 },
         article: { id: selectedArticle.id }
       };
 
       const response = await fetch(`${API_BASE_URL}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -282,6 +290,38 @@ export default function ArticleHub() {
       alert("حدث خطأ أثناء الاتصال بالسيرفر");
     } finally {
       setIsPostingComment(false);
+    }
+  };
+
+  const handleRateComment = async (commentId, vote) => {
+    if (!token) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/comments/${commentId}/rate`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ vote })
+      });
+      
+      if (response.ok) {
+        const updatedComment = await response.json();
+        
+        // Update the comment in local state
+        const updatedArticle = {
+          ...selectedArticle,
+          comments: selectedArticle.comments.map(c => c.id === commentId ? updatedComment : c)
+        };
+        setSelectedArticle(updatedArticle);
+        setArticles(prev => prev.map(a => a.id === selectedArticle.id ? updatedArticle : a));
+      }
+    } catch (error) {
+      console.error("Error rating comment:", error);
     }
   };
 
@@ -391,13 +431,43 @@ export default function ArticleHub() {
             >
               {isDarkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} />}
             </button>
-            <div className="hidden md:flex items-center gap-2 text-xs bg-indigo-800/80 dark:bg-indigo-900 px-3 py-1.5 rounded-full border border-white/5">
+            <div className="hidden md:flex items-center gap-2 text-xs bg-indigo-800/80 dark:bg-indigo-900 px-3 py-1.5 rounded-full border border-white/5 mr-2">
               <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-400' : error ? 'bg-red-400' : 'bg-green-400'}`}></div>
               {isLoading ? 'جاري الاتصال...' : error ? 'خطأ في الاتصال' : 'متصل بالـ API'}
+            </div>
+            
+            {/* User Auth Info */}
+            <div className="flex items-center gap-3 border-r border-white/20 pr-4 mr-2">
+              {user ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold">
+                      {user.name?.charAt(0)}
+                    </div>
+                    <span className="text-sm font-bold hidden md:block">{user.name}</span>
+                  </div>
+                  <button 
+                    onClick={logout}
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white"
+                    title="تسجيل الخروج"
+                  >
+                    <LogOut size={18} />
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-colors font-bold text-sm border border-white/10"
+                >
+                  <LogIn size={16} /> تسجيل الدخول
+                </button>
+              )}
             </div>
           </div>
         </div>
       </nav>
+
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
 
       <main className="container mx-auto px-4 py-8">
 
@@ -727,25 +797,37 @@ export default function ArticleHub() {
                   </h3>
 
                   {/* Comment Input */}
-                  <div className="bg-white dark:bg-gray-800/80 p-1 mb-8 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
-                    <textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="اكتب تعليقك هنا..."
-                      className="w-full p-4 rounded-t-2xl outline-none resize-none h-24 text-gray-700 dark:text-gray-200 bg-transparent text-sm"
-                    ></textarea>
-                    <div className="bg-gray-50 dark:bg-gray-750 p-2.5 flex justify-between items-center rounded-b-2xl border-t border-gray-100 dark:border-gray-700">
-                      <span className="text-xs text-gray-400 dark:text-gray-500">تحليل فوري لمشاعر التعليق بالذكاء الاصطناعي</span>
-                      <button
-                        onClick={handlePostComment}
-                        disabled={isPostingComment || !newComment.trim()}
-                        className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all ${!newComment.trim() ? 'bg-gray-200 text-gray-400 dark:bg-gray-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  {user ? (
+                    <div className="bg-white dark:bg-gray-800/80 p-1 mb-8 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="اكتب تعليقك هنا..."
+                        className="w-full p-4 rounded-t-2xl outline-none resize-none h-24 text-gray-700 dark:text-gray-200 bg-transparent text-sm"
+                      ></textarea>
+                      <div className="bg-gray-50 dark:bg-gray-750 p-2.5 flex justify-between items-center rounded-b-2xl border-t border-gray-100 dark:border-gray-700">
+                        <span className="text-xs text-gray-400 dark:text-gray-500">تحليل فوري لمشاعر التعليق بالذكاء الاصطناعي</span>
+                        <button
+                          onClick={handlePostComment}
+                          disabled={isPostingComment || !newComment.trim()}
+                          className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all ${!newComment.trim() ? 'bg-gray-200 text-gray-400 dark:bg-gray-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                        >
+                          {isPostingComment ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                          نشر التعليق
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 mb-8 text-center flex flex-col items-center justify-center gap-3">
+                      <p className="text-gray-600 dark:text-gray-400 font-medium">يجب تسجيل الدخول لإضافة تعليق أو تقييم التعليقات</p>
+                      <button 
+                        onClick={() => setIsAuthModalOpen(true)}
+                        className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
                       >
-                        {isPostingComment ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                        نشر التعليق
+                        <LogIn size={18} /> تسجيل الدخول الآن
                       </button>
                     </div>
-                  </div>
+                  )}
 
                   {/* Comments List */}
                   <div className="space-y-4">
@@ -762,10 +844,31 @@ export default function ArticleHub() {
                             </div>
                           </div>
 
-                          <div className={`px-4 py-1.5 rounded-full text-xs font-extrabold flex items-center gap-2 whitespace-nowrap self-end md:self-start ${getSentimentStyle(comment.sentiment)}`}>
-                            {comment.sentiment === 'POSITIVE' && <><ThumbsUp size={14} /> إيجابي</>}
-                            {comment.sentiment === 'NEGATIVE' && <><ThumbsDown size={14} /> سلبي</>}
-                            {(!comment.sentiment || comment.sentiment === 'NEUTRAL') && <><Minus size={14} /> محايد</>}
+                          <div className="flex flex-col md:items-end gap-2 shrink-0 self-end md:self-start w-full md:w-auto">
+                            <div className={`px-4 py-1.5 rounded-full text-xs font-extrabold flex items-center gap-2 whitespace-nowrap self-end md:self-start ${getSentimentStyle(comment.sentiment)}`}>
+                              {comment.sentiment === 'POSITIVE' && <><ThumbsUp size={14} /> إيجابي</>}
+                              {comment.sentiment === 'NEGATIVE' && <><ThumbsDown size={14} /> سلبي</>}
+                              {(!comment.sentiment || comment.sentiment === 'NEUTRAL') && <><Minus size={14} /> محايد</>}
+                            </div>
+                            
+                            {/* Upvote / Downvote */}
+                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-1 rounded-xl self-end md:self-start mt-2">
+                              <button 
+                                onClick={() => handleRateComment(comment.id, 1)}
+                                className="p-1.5 rounded-lg text-gray-500 hover:bg-green-100 hover:text-green-600 dark:hover:bg-green-900/50 dark:hover:text-green-400 transition-colors"
+                              >
+                                <ThumbsUp size={16} />
+                              </button>
+                              <span className={`text-sm font-extrabold min-w-[20px] text-center ${comment.score > 0 ? 'text-green-600 dark:text-green-400' : comment.score < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
+                                {comment.score || 0}
+                              </span>
+                              <button 
+                                onClick={() => handleRateComment(comment.id, -1)}
+                                className="p-1.5 rounded-lg text-gray-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400 transition-colors"
+                              >
+                                <ThumbsDown size={16} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))
