@@ -39,8 +39,14 @@ export function AuthProvider({ children }) {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || 'فشل تسجيل الدخول');
+        let errorMsg = 'فشل تسجيل الدخول';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch {
+          errorMsg = `خطأ من السيرفر (${res.status})`;
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();
@@ -65,8 +71,14 @@ export function AuthProvider({ children }) {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || 'فشل إرسال كود التفعيل');
+        let errorMsg = 'فشل إرسال كود التفعيل';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch {
+          errorMsg = `خطأ من السيرفر (${res.status})`;
+        }
+        throw new Error(errorMsg);
       }
 
       return { success: true };
@@ -86,8 +98,14 @@ export function AuthProvider({ children }) {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || 'فشل إنشاء الحساب');
+        let errorMsg = 'فشل إنشاء الحساب';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch {
+          errorMsg = `خطأ من السيرفر (${res.status})`;
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();
