@@ -54,14 +54,35 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const register = async (name, email, password) => {
+  const requestVerificationCode = async (email) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/request-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'فشل إرسال كود التفعيل');
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const register = async (name, email, password, code) => {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password })
+        body: JSON.stringify({ name, email, password, code })
       });
 
       if (!res.ok) {
@@ -92,6 +113,7 @@ export function AuthProvider({ children }) {
     token,
     login,
     register,
+    requestVerificationCode,
     logout,
     isAuthLoading
   };

@@ -260,7 +260,7 @@ export default function ArticleHub() {
     try {
       const payload = {
         text: newComment,
-        article: { id: selectedArticle.id }
+        article_id: selectedArticle.id
       };
 
       const response = await fetch(`${API_BASE_URL}/comments`, {
