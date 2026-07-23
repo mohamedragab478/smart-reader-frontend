@@ -273,26 +273,42 @@ export default function ArticleHub() {
         throw new Error('تعذر الحصول على رد من المساعد الذكي');
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let done = false;
+      const contentType = res.headers.get('content-type') || '';
 
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          setChatHistory(prev => {
-            const updated = [...prev];
-            const lastIndex = updated.length - 1;
-            if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
-              updated[lastIndex] = {
-                ...updated[lastIndex],
-                content: updated[lastIndex].content + chunk
-              };
-            }
-            return updated;
-          });
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        const text = data.reply || data.message || JSON.stringify(data);
+        setChatHistory(prev => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
+            updated[lastIndex] = { role: 'model', content: text };
+          }
+          return updated;
+        });
+      } else {
+        // Stream text reader (handles plain text & text/event-stream)
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let done = false;
+
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          if (value) {
+            const chunk = decoder.decode(value, { stream: true });
+            setChatHistory(prev => {
+              const updated = [...prev];
+              const lastIndex = updated.length - 1;
+              if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
+                updated[lastIndex] = {
+                  ...updated[lastIndex],
+                  content: updated[lastIndex].content + chunk
+                };
+              }
+              return updated;
+            });
+          }
         }
       }
     } catch (err) {
