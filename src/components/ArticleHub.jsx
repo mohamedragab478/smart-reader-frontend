@@ -6,7 +6,7 @@ import {
   Search, BookOpen, FileText, MessageSquare, ArrowRight, User, 
   ThumbsUp, ThumbsDown, Minus, Loader2, Send, AlertCircle, 
   Headphones, StopCircle, PauseCircle, PlayCircle, Moon, Sun, Globe,
-  ExternalLink, X, Upload, FilePlus, LogOut, LogIn, Bot, Sparkles, GripHorizontal
+  ExternalLink, X, Upload, FilePlus, LogOut, LogIn, Bot, Sparkles, GripHorizontal, Trash2
 } from 'lucide-react';
 
 export default function ArticleHub() {
@@ -424,9 +424,36 @@ export default function ArticleHub() {
         };
         setSelectedArticle(updatedArticle);
         setArticles(prev => prev.map(a => a.id === selectedArticle.id ? updatedArticle : a));
-      }
     } catch (error) {
       console.error("Error rating comment:", error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!token) return;
+    if (!window.confirm("هل أنت تأكد من إحذف هذا التعليق؟")) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const updatedComments = (selectedArticle.comments || []).filter(c => c.id !== commentId);
+        const updatedArticle = {
+          ...selectedArticle,
+          comments: updatedComments
+        };
+        setSelectedArticle(updatedArticle);
+        setArticles(prev => prev.map(a => a.id === selectedArticle.id ? updatedArticle : a));
+      } else {
+        alert("فشل حذف التعليق");
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
     }
   };
 
@@ -973,6 +1000,17 @@ export default function ArticleHub() {
                               >
                                 <ThumbsDown size={16} />
                               </button>
+
+                              {/* Delete Comment Button (Author only) */}
+                              {user && (comment.user_id === user.id || comment.user?.id === user.id || comment.user?.email === user.email) && (
+                                <button 
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors mr-1"
+                                  title="حذف التعليق"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
