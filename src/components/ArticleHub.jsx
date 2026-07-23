@@ -246,14 +246,21 @@ export default function ArticleHub() {
     if (!chatInput.trim() || !selectedArticle?.id) return;
     
     const userMessage = chatInput;
+    const currentHistory = [...chatHistory];
     setChatInput("");
-    setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+    
+    // Add user message & empty placeholder for model response streaming
+    setChatHistory(prev => [
+      ...prev,
+      { role: 'user', content: userMessage },
+      { role: 'model', content: '' }
+    ]);
     setIsChatLoading(true);
 
     try {
       const payload = {
         message: userMessage,
-        history: chatHistory
+        history: currentHistory
       };
 
       const res = await fetch(`${API_BASE_URL}/ai/articles/${selectedArticle.id}/chat`, {
@@ -266,10 +273,42 @@ export default function ArticleHub() {
         throw new Error('تعذر الحصول على رد من المساعد الذكي');
       }
 
-      const data = await res.json();
-      setChatHistory(prev => [...prev, { role: 'model', content: data.reply }]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          setChatHistory(prev => {
+            const updated = [...prev];
+            const lastIndex = updated.length - 1;
+            if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
+              updated[lastIndex] = {
+                ...updated[lastIndex],
+                content: updated[lastIndex].content + chunk
+              };
+            }
+            return updated;
+          });
+        }
+      }
     } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'model', content: `خطأ: ${err.message}` }]);
+      setChatHistory(prev => {
+        const updated = [...prev];
+        const lastIndex = updated.length - 1;
+        if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            content: updated[lastIndex].content || `خطأ: ${err.message}`
+          };
+        } else {
+          updated.push({ role: 'model', content: `خطأ: ${err.message}` });
+        }
+        return updated;
+      });
     } finally {
       setIsChatLoading(false);
     }
@@ -937,23 +976,11 @@ export default function ArticleHub() {
         )}
       </main>
 
-      {/* Floating Draggable AI Assistant Chatbot */}
-      {selectedArticle && (
-        <div 
-          className="fixed z-50 select-none transition-transform duration-75"
-          style={{
-            bottom: '24px',
-            right: '24px',
-            transform: `translate(${fabPosition.x}px, ${fabPosition.y}px)`
-          }}
-        >
-          {/* Floating Animated Chat Window */}
+      {/* Centered Animated AI Assistant Chat Modal Overlay */}
+      {selectedArticle && isChatOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
           <div 
-            className={`absolute bottom-16 right-0 mb-3 w-[90vw] sm:w-[420px] h-[560px] max-h-[75vh] bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-100 dark:border-gray-800 flex flex-col overflow-hidden transition-all duration-300 transform origin-bottom-right ${
-              isChatOpen 
-                ? 'scale-100 opacity-100 translate-y-0 pointer-events-auto shadow-indigo-500/20' 
-                : 'scale-90 opacity-0 translate-y-8 pointer-events-none'
-            }`}
+            className="w-full max-w-lg h-[600px] max-h-[85vh] bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-100 dark:border-gray-800 flex flex-col overflow-hidden animate-scale-up"
           >
             {/* Window Header */}
             <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white p-4 flex items-center justify-between shadow-md">
@@ -966,7 +993,7 @@ export default function ArticleHub() {
                     مساعد القراءة الذكي
                     <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-normal border border-white/20">AI</span>
                   </h4>
-                  <p className="text-[11px] opacity-80 line-clamp-1 max-w-[200px]">
+                  <p className="text-[11px] opacity-80 line-clamp-1 max-w-[220px]">
                     {selectedArticle.title}
                   </p>
                 </div>
@@ -976,7 +1003,7 @@ export default function ArticleHub() {
                 <button
                   onClick={() => setIsChatOpen(false)}
                   className="p-2 rounded-xl hover:bg-white/20 transition text-white/90 hover:text-white"
-                  title="تصغير / إغلاق"
+                  title="إغلاق"
                 >
                   <X size={20} />
                 </button>
@@ -1041,7 +1068,7 @@ export default function ArticleHub() {
                 <div className="flex justify-end animate-pulse">
                   <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-xs px-4 py-3 border border-gray-150 dark:border-gray-700 shadow-sm flex items-center gap-2">
                     <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400 h-4 w-4" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">المساعد يجهز الإجابة...</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">المساعد يكتب الآن...</span>
                   </div>
                 </div>
               )}
@@ -1069,8 +1096,19 @@ export default function ArticleHub() {
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Floating Action Button (FAB) - Draggable */}
+      {/* Floating Action Button (FAB) - Draggable */}
+      {selectedArticle && (
+        <div 
+          className="fixed z-50 select-none transition-transform duration-75"
+          style={{
+            bottom: '24px',
+            right: '24px',
+            transform: `translate(${fabPosition.x}px, ${fabPosition.y}px)`
+          }}
+        >
           <div
             onMouseDown={handleDragStart}
             onTouchStart={handleDragStart}
@@ -1097,4 +1135,5 @@ export default function ArticleHub() {
       )}
     </div>
   );
+}
 }
