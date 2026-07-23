@@ -6,7 +6,7 @@ import {
   Search, BookOpen, FileText, MessageSquare, ArrowRight, User, 
   ThumbsUp, ThumbsDown, Minus, Loader2, Send, AlertCircle, 
   Headphones, StopCircle, PauseCircle, PlayCircle, Moon, Sun, Globe,
-  ExternalLink, X, Upload, FilePlus, LogOut, LogIn
+  ExternalLink, X, Upload, FilePlus, LogOut, LogIn, Bot, Sparkles, GripHorizontal
 } from 'lucide-react';
 
 export default function ArticleHub() {
@@ -46,7 +46,60 @@ export default function ArticleHub() {
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [fabPosition, setFabPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, origX: 0, origY: 0, hasDragged: false });
   const chatEndRef = useRef(null);
+
+  const handleDragStart = (e) => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    dragRef.current = {
+      startX: clientX,
+      startY: clientY,
+      origX: fabPosition.x,
+      origY: fabPosition.y,
+      hasDragged: false
+    };
+    setIsDragging(true);
+
+    const handleMove = (moveEvent) => {
+      const currentX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const currentY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const dx = currentX - dragRef.current.startX;
+      const dy = currentY - dragRef.current.startY;
+
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        dragRef.current.hasDragged = true;
+      }
+
+      setFabPosition({
+        x: dragRef.current.origX + dx,
+        y: dragRef.current.origY + dy
+      });
+    };
+
+    const handleEnd = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+  };
+
+  const handleFabClick = () => {
+    if (!dragRef.current.hasDragged) {
+      setIsChatOpen(prev => !prev);
+    }
+  };
 
   // --- TTS States ---
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -690,11 +743,11 @@ export default function ArticleHub() {
             )}
           </div>
         ) : (
-          /* --- Article Details Page with Sidebar Layout --- */
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-fade-in-up">
+          /* --- Article Details Page --- */
+          <div className="max-w-4xl mx-auto animate-fade-in-up">
             
-            {/* Article Content Area (2/3 width) */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+            {/* Article Content Area */}
+            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
               
               {/* Cover Image & Header */}
               <div className="h-72 md:h-96 w-full relative">
@@ -714,9 +767,9 @@ export default function ArticleHub() {
                 </div>
               </div>
 
-              {/* Toolbar */}
+              {/* Action Toolbar */}
               <div className="p-6 md:p-8">
-                <div className="flex flex-wrap gap-3 mb-8 border-b pb-6 border-gray-100 dark:border-gray-750 items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-4 pb-8 mb-8 border-b border-gray-150 dark:border-gray-700/60">
                   <button
                     onClick={handleSummarize}
                     disabled={isSummarizing}
@@ -880,82 +933,168 @@ export default function ArticleHub() {
 
               </div>
             </div>
-
-            {/* AI Chatbot Sidebar (1/3 width) */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden sticky top-24 flex flex-col h-[600px]">
-              
-              {/* Chat Header */}
-              <div className="bg-indigo-50 dark:bg-gray-750 p-4 border-b border-gray-150 dark:border-gray-700 flex items-center gap-2 shrink-0">
-                <div className="bg-indigo-600 text-white p-1.5 rounded-lg">
-                  <MessageSquare size={18} />
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-sm text-gray-800 dark:text-white">مساعد القراءة التفاعلي</h4>
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500">اطرح أي سؤال حول المقال (بالعربية أو الإنجليزية)</p>
-                </div>
-              </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-gray-900/10">
-                {chatHistory.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 dark:text-gray-500 space-y-2">
-                    <p className="text-sm">أهلاً بك! أنا مساعدك الذكي الخاص بهذا المقال.</p>
-                    <p className="text-xs">اسألني مثل: "ما هي النقاط الرئيسية للمقال؟"</p>
-                  </div>
-                ) : (
-                  chatHistory.map((chat, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex ${chat.role === 'user' ? 'justify-start' : 'justify-end'} animate-fade-in`}
-                    >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                          chat.role === 'user'
-                            ? 'bg-indigo-600 text-white rounded-br-none'
-                            : 'bg-white dark:bg-gray-700 text-gray-850 dark:text-gray-200 border border-gray-150 dark:border-gray-650 rounded-bl-none shadow-sm'
-                        }`}
-                      >
-                        <p className="whitespace-pre-line">{chat.content}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-                {isChatLoading && (
-                  <div className="flex justify-end animate-pulse">
-                    <div className="bg-white dark:bg-gray-700 rounded-2xl rounded-bl-none px-4 py-3 border border-gray-150 dark:border-gray-650 shadow-sm flex items-center gap-2">
-                      <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400 h-4 w-4" />
-                      <span className="text-xs text-gray-400">يفكر المساعد...</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Chat Input */}
-              <div className="p-3 border-t border-gray-150 dark:border-gray-700 bg-white dark:bg-gray-850 shrink-0">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
-                    placeholder="اسألني عن المقال..."
-                    className="flex-1 p-2.5 rounded-xl border border-gray-200 dark:border-gray-650 dark:bg-gray-800 dark:text-white text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    onClick={handleSendChatMessage}
-                    disabled={isChatLoading || !chatInput.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl transition-all disabled:opacity-50"
-                  >
-                    <Send size={18} className="rotate-180" />
-                  </button>
-                </div>
-              </div>
-
-            </div>
           </div>
         )}
       </main>
+
+      {/* Floating Draggable AI Assistant Chatbot */}
+      {selectedArticle && (
+        <div 
+          className="fixed z-50 select-none transition-transform duration-75"
+          style={{
+            bottom: '24px',
+            right: '24px',
+            transform: `translate(${fabPosition.x}px, ${fabPosition.y}px)`
+          }}
+        >
+          {/* Floating Animated Chat Window */}
+          <div 
+            className={`absolute bottom-16 right-0 mb-3 w-[90vw] sm:w-[420px] h-[560px] max-h-[75vh] bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-100 dark:border-gray-800 flex flex-col overflow-hidden transition-all duration-300 transform origin-bottom-right ${
+              isChatOpen 
+                ? 'scale-100 opacity-100 translate-y-0 pointer-events-auto shadow-indigo-500/20' 
+                : 'scale-90 opacity-0 translate-y-8 pointer-events-none'
+            }`}
+          >
+            {/* Window Header */}
+            <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white p-4 flex items-center justify-between shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-inner">
+                  <Sparkles size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm flex items-center gap-1.5">
+                    مساعد القراءة الذكي
+                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-normal border border-white/20">AI</span>
+                  </h4>
+                  <p className="text-[11px] opacity-80 line-clamp-1 max-w-[200px]">
+                    {selectedArticle.title}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="p-2 rounded-xl hover:bg-white/20 transition text-white/90 hover:text-white"
+                  title="تصغير / إغلاق"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Prompts Suggestions */}
+            {chatHistory.length === 0 && (
+              <div className="p-3 bg-indigo-50/70 dark:bg-gray-850 border-b border-indigo-100/50 dark:border-gray-800">
+                <p className="text-xs text-indigo-900 dark:text-indigo-300 font-bold mb-2 flex items-center gap-1">
+                  <Sparkles size={13} className="text-indigo-600 dark:text-indigo-400" /> أسئلة مقترحة:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "لخص لي المقال بأسلوب بسيط",
+                    "ما هي النقاط الرئيسية في المقال؟",
+                    "من هو الكاتب أو المصدر؟"
+                  ].map((prompt, pIdx) => (
+                    <button
+                      key={pIdx}
+                      onClick={() => {
+                        setChatInput(prompt);
+                      }}
+                      className="text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 transition-all font-medium shadow-2xs"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-gray-950/20">
+              {chatHistory.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 dark:text-gray-500 space-y-3">
+                  <div className="w-14 h-14 rounded-3xl bg-indigo-50 dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto shadow-inner">
+                    <Bot size={28} />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">أهلاً بك! أنا مساعدك الذكي الخاص بهذا المقال.</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">اطرح أي سؤال أو اطلب مناقشة أي جزء في أي وقت!</p>
+                </div>
+              ) : (
+                chatHistory.map((chat, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${chat.role === 'user' ? 'justify-start' : 'justify-end'} animate-fade-in`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                        chat.role === 'user'
+                          ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-br-xs'
+                          : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-150 dark:border-gray-700 rounded-bl-xs'
+                      }`}
+                    >
+                      <p className="whitespace-pre-line">{chat.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {isChatLoading && (
+                <div className="flex justify-end animate-pulse">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-xs px-4 py-3 border border-gray-150 dark:border-gray-700 shadow-sm flex items-center gap-2">
+                    <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400 h-4 w-4" />
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">المساعد يجهز الإجابة...</span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat Input Area */}
+            <div className="p-3 border-t border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                  placeholder="اسأل المساعد الذكي عن المقال..."
+                  className="flex-1 px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-750 dark:bg-gray-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                />
+                <button
+                  onClick={handleSendChatMessage}
+                  disabled={isChatLoading || !chatInput.trim()}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white p-3 rounded-2xl transition-all disabled:opacity-50 shadow-md flex items-center justify-center shrink-0 active:scale-95"
+                >
+                  <Send size={18} className="rotate-180" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating Action Button (FAB) - Draggable */}
+          <div
+            onMouseDown={handleDragStart}
+            onTouchStart={handleDragStart}
+            onClick={handleFabClick}
+            className={`group cursor-grab active:cursor-grabbing flex items-center gap-2.5 px-4 py-3.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 text-white shadow-2xl hover:shadow-indigo-500/40 border border-white/20 transition-all duration-200 hover:scale-105 active:scale-95 ${
+              isDragging ? 'opacity-90 ring-4 ring-indigo-400/50 scale-105' : ''
+            }`}
+          >
+            <GripHorizontal size={14} className="text-white/60 group-hover:text-white transition-colors" />
+            <div className="relative">
+              <Sparkles size={20} className="animate-bounce" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-indigo-700 animate-ping"></span>
+            </div>
+            <span className="font-extrabold text-xs whitespace-nowrap hidden sm:inline">
+              {isChatOpen ? "إغلاق المساعد" : "المساعد الذكي ✦"}
+            </span>
+            {chatHistory.length > 0 && (
+              <span className="bg-white/25 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                {chatHistory.length}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
