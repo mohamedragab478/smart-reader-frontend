@@ -246,7 +246,8 @@ export default function ArticleHub() {
     if (!chatInput.trim() || !selectedArticle?.id) return;
     
     const userMessage = chatInput;
-    const currentHistory = [...chatHistory];
+    // Filter history to ensure no empty content messages are sent
+    const validHistory = chatHistory.filter(h => h.content && h.content.trim());
     setChatInput("");
     
     // Add user message & empty placeholder for model response streaming
@@ -260,7 +261,7 @@ export default function ArticleHub() {
     try {
       const payload = {
         message: userMessage,
-        history: currentHistory
+        history: validHistory
       };
 
       const res = await fetch(`${API_BASE_URL}/ai/articles/${selectedArticle.id}/chat`, {
@@ -273,44 +274,40 @@ export default function ArticleHub() {
         throw new Error('تعذر الحصول على رد من المساعد الذكي');
       }
 
+      let fullText = '';
       const contentType = res.headers.get('content-type') || '';
 
       if (contentType.includes('application/json')) {
         const data = await res.json();
-        const text = data.reply || data.message || JSON.stringify(data);
-        setChatHistory(prev => {
-          const updated = [...prev];
-          const lastIndex = updated.length - 1;
-          if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
-            updated[lastIndex] = { role: 'model', content: text };
-          }
-          return updated;
-        });
+        fullText = data.reply || data.message || JSON.stringify(data);
       } else {
-        // Stream text reader (handles plain text & text/event-stream)
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let done = false;
-
-        while (!done) {
-          const { value, done: doneReading } = await reader.read();
-          done = doneReading;
-          if (value) {
-            const chunk = decoder.decode(value, { stream: true });
-            setChatHistory(prev => {
-              const updated = [...prev];
-              const lastIndex = updated.length - 1;
-              if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
-                updated[lastIndex] = {
-                  ...updated[lastIndex],
-                  content: updated[lastIndex].content + chunk
-                };
-              }
-              return updated;
-            });
-          }
-        }
+        fullText = await res.text();
       }
+
+      // Smooth Typewriter Streaming Animation
+      const words = fullText.split(' ');
+      let currentWordIndex = 0;
+      let streamedText = '';
+
+      const intervalId = setInterval(() => {
+        if (currentWordIndex < words.length) {
+          streamedText += (currentWordIndex === 0 ? '' : ' ') + words[currentWordIndex];
+          const currentChunk = streamedText;
+          setChatHistory(prev => {
+            const updated = [...prev];
+            const lastIndex = updated.length - 1;
+            if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
+              updated[lastIndex] = { role: 'model', content: currentChunk };
+            }
+            return updated;
+          });
+          currentWordIndex++;
+        } else {
+          clearInterval(intervalId);
+          setIsChatLoading(false);
+        }
+      }, 25);
+
     } catch (err) {
       setChatHistory(prev => {
         const updated = [...prev];
@@ -325,7 +322,6 @@ export default function ArticleHub() {
         }
         return updated;
       });
-    } finally {
       setIsChatLoading(false);
     }
   };
