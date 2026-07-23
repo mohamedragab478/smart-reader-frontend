@@ -249,7 +249,7 @@ export default function ArticleHub() {
     const validHistory = chatHistory.filter(h => h.content && h.content.trim());
     setChatInput("");
     
-    // Add user message & empty placeholder for live streaming response
+    // Add user message & empty placeholder for AI response animation
     setChatHistory(prev => [
       ...prev,
       { role: 'user', content: userMessage },
@@ -273,29 +273,42 @@ export default function ArticleHub() {
         throw new Error('تعذر الحصول على رد من المساعد الذكي');
       }
 
-      // Read stream live as Groq generates each word/chunk
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let done = false;
+      let fullText = '';
+      const contentType = res.headers.get('content-type') || '';
 
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          const chunkText = decoder.decode(value, { stream: true });
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        fullText = data.reply || data.message || JSON.stringify(data);
+      } else {
+        fullText = await res.text();
+      }
+
+      // Hide loading spinner right when response arrives
+      setIsChatLoading(false);
+
+      // Animate word-by-word streaming effect on screen!
+      const words = fullText.split(' ');
+      let currentWordIndex = 0;
+      let streamedText = '';
+
+      const timer = setInterval(() => {
+        if (currentWordIndex < words.length) {
+          streamedText += (currentWordIndex === 0 ? '' : ' ') + words[currentWordIndex];
+          const currentChunk = streamedText;
           setChatHistory(prev => {
             const updated = [...prev];
             const lastIndex = updated.length - 1;
             if (lastIndex >= 0 && updated[lastIndex].role === 'model') {
-              updated[lastIndex] = {
-                ...updated[lastIndex],
-                content: updated[lastIndex].content + chunkText
-              };
+              updated[lastIndex] = { role: 'model', content: currentChunk };
             }
             return updated;
           });
+          currentWordIndex++;
+        } else {
+          clearInterval(timer);
         }
-      }
+      }, 25);
+
     } catch (err) {
       setChatHistory(prev => {
         const updated = [...prev];
@@ -310,7 +323,6 @@ export default function ArticleHub() {
         }
         return updated;
       });
-    } finally {
       setIsChatLoading(false);
     }
   };
